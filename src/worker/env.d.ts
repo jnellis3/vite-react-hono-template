@@ -2,5 +2,5 @@
 // Wrangler will generate worker-configuration.d.ts; we extend it here.
 interface Env {
   DB: D1Database;
+  JWT_SECRET: string;
 }
-

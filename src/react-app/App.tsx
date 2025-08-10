@@ -6,6 +6,7 @@ import viteLogo from "/vite.svg";
 import cloudflareLogo from "./assets/Cloudflare_Logo.svg";
 import honoLogo from "./assets/hono.svg";
 import "./App.css";
+import Auth from "./Auth";
 
 function App() {
   const [count, setCount] = useState(0);
@@ -57,6 +58,9 @@ function App() {
         <p>
           Edit <code>worker/index.ts</code> to change the name
         </p>
+      </div>
+      <div className="card">
+        <Auth />
       </div>
       <p className="read-the-docs">Click on the logos to learn more</p>
     </>
