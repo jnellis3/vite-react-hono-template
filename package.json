@@ -41,6 +41,9 @@
     "check": "tsc && vite build && wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
     "dev": "vite",
+    "db:migration:new": "wrangler d1 migrations create DB --name",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "lint": "eslint .",
     "preview": "npm run build && vite preview"
   },

@@ -16,7 +16,8 @@
     {
       "binding": "DB",
       "database_name": "db1",
-      "database_id": "17243344-46c5-419d-a309-7470bad12281"
+      "database_id": "17243344-46c5-419d-a309-7470bad12281",
+      "migrations_dir": "./migrations"
     }
   ]
 }
