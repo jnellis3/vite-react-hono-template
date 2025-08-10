@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { setCookie, deleteCookie, getCookie } from "hono/cookie";
 import { hashPassword, signJwt, verifyJwt, verifyPassword } from "./auth";
+import { requireAuth } from "./middleware";
 
 type Variables = { userId?: number };
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -84,3 +85,170 @@ app.post("/api/auth/logout", async (c) => {
 });
 
 export default app;
+// Social routes
+
+// Create a post
+app.post("/api/posts", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const { content } = await c.req.json<{ content?: string }>().catch(() => ({} as any));
+  if (!content || content.trim().length === 0) return c.json({ error: "content required" }, 400);
+  if (content.length > 500) return c.json({ error: "content too long (max 500)" }, 400);
+  try {
+    const post = await c.env.DB.prepare(
+      "insert into posts (author_id, content) values (?, ?) returning id, author_id, content, created_at"
+    ).bind(userId, content.trim()).first();
+    return c.json({ post });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// Timeline: posts by me + who I follow
+app.get("/api/posts/timeline", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const url = new URL(c.req.url);
+  const cursor = url.searchParams.get("cursor");
+  const limit = Math.min(20, parseInt(url.searchParams.get("limit") || "20", 10) || 20);
+  const params: any[] = [userId, userId];
+  let whereCursor = "";
+  if (cursor) {
+    whereCursor = " and p.id < ?";
+    params.push(Number(cursor));
+  }
+  try {
+    const stmt = c.env.DB.prepare(
+      `select p.id, p.content, p.created_at,
+              u.id as author_id, coalesce(u.display_name, u.name) as author_name, u.handle,
+              (select count(*) from likes l where l.post_id = p.id) as like_count,
+              (select count(*) from comments cm where cm.post_id = p.id) as comment_count,
+              exists(select 1 from likes l2 where l2.post_id = p.id and l2.user_id = ?) as liked
+       from posts p
+       join users u on u.id = p.author_id
+       where (p.author_id = ? or p.author_id in (select followee_id from follows where follower_id = ?))
+       ${whereCursor}
+       order by p.id desc
+       limit ?`
+    ).bind(userId, userId, userId, ...(cursor ? [Number(cursor)] : []), limit);
+    const { results } = await stmt.all();
+    const nextCursor = results.length === limit ? results[results.length - 1].id : null;
+    return c.json({ items: results, nextCursor });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// Like a post
+app.post("/api/posts/:id/like", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const id = Number(c.req.param("id"));
+  try {
+    await c.env.DB.prepare("insert or ignore into likes (user_id, post_id) values (?, ?)").bind(userId, id).run();
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// Unlike a post
+app.delete("/api/posts/:id/like", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const id = Number(c.req.param("id"));
+  try {
+    await c.env.DB.prepare("delete from likes where user_id = ? and post_id = ?").bind(userId, id).run();
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// Comment on a post
+app.post("/api/posts/:id/comments", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const postId = Number(c.req.param("id"));
+  const { content } = await c.req.json<{ content?: string }>().catch(() => ({} as any));
+  if (!content || content.trim().length === 0) return c.json({ error: "content required" }, 400);
+  if (content.length > 400) return c.json({ error: "comment too long (max 400)" }, 400);
+  try {
+    const comment = await c.env.DB.prepare(
+      "insert into comments (post_id, author_id, content) values (?, ?, ?) returning id, post_id, author_id, content, created_at"
+    ).bind(postId, userId, content.trim()).first();
+    return c.json({ comment });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// List comments
+app.get("/api/posts/:id/comments", async (c) => {
+  const postId = Number(c.req.param("id"));
+  try {
+    const { results } = await c.env.DB.prepare(
+      `select cm.id, cm.content, cm.created_at, u.id as author_id, coalesce(u.display_name, u.name) as author_name, u.handle
+       from comments cm join users u on u.id = cm.author_id
+       where cm.post_id = ? order by cm.id desc limit 50`
+    ).bind(postId).all();
+    return c.json({ items: results });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// Follow / Unfollow
+app.post("/api/users/:id/follow", requireAuth, async (c) => {
+  const followerId = c.get("userId")!;
+  const followeeId = Number(c.req.param("id"));
+  if (followerId === followeeId) return c.json({ error: "cannot follow yourself" }, 400);
+  try {
+    await c.env.DB.prepare("insert or ignore into follows (follower_id, followee_id) values (?, ?)").bind(followerId, followeeId).run();
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+app.delete("/api/users/:id/follow", requireAuth, async (c) => {
+  const followerId = c.get("userId")!;
+  const followeeId = Number(c.req.param("id"));
+  try {
+    await c.env.DB.prepare("delete from follows where follower_id = ? and followee_id = ?").bind(followerId, followeeId).run();
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// Profiles
+app.get("/api/users/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const user = await c.env.DB.prepare(
+    "select id, email, handle, display_name, bio, avatar_url, banner_url, created_at from users where id = ?"
+  ).bind(id).first();
+  if (!user) return c.json({ error: "not found" }, 404);
+  return c.json({ user });
+});
+
+app.patch("/api/me/profile", requireAuth, async (c) => {
+  const userId = c.get("userId")!;
+  const body = await c.req.json().catch(() => ({}));
+  const { handle, display_name, bio, avatar_url, banner_url } = body as Record<string, string | undefined>;
+  try {
+    // Basic safe update
+    await c.env.DB.prepare(
+      `update users set
+         handle = coalesce(?, handle),
+         display_name = coalesce(?, display_name),
+         bio = coalesce(?, bio),
+         avatar_url = coalesce(?, avatar_url),
+         banner_url = coalesce(?, banner_url),
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       where id = ?`
+    ).bind(handle ?? null, display_name ?? null, bio ?? null, avatar_url ?? null, banner_url ?? null, userId).run();
+    const user = await c.env.DB.prepare(
+      "select id, email, handle, display_name, bio, avatar_url, banner_url, created_at from users where id = ?"
+    ).bind(userId).first();
+    return c.json({ user });
+  } catch (e) {
+    const msg = String(e);
+    if (msg.includes("UNIQUE") && msg.includes("handle")) return c.json({ error: "handle already taken" }, 409);
+    return c.json({ error: msg }, 500);
+  }
+});
