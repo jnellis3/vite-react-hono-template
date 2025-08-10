@@ -18,8 +18,8 @@ export default function Profile({ userId }: { userId?: number }) {
     load();
   }, [userId]);
 
-  if (!userId) return <div style={{ padding: 16 }}>Sign in to view your profile.</div>;
-  if (!user) return <div style={{ padding: 16 }}>Loading...</div>;
+  if (!userId) return <div className="card">Sign in to view your profile.</div>;
+  if (!user) return <div className="card">Loading...</div>;
 
   return (
     <div>
@@ -54,4 +54,3 @@ export default function Profile({ userId }: { userId?: number }) {
     </div>
   );
 }
-

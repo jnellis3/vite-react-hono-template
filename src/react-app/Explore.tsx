@@ -92,9 +92,9 @@ export default function Explore({ onOpenProfile }: { onOpenProfile: (id: number)
               </div>
             )}
             {comments[p.id]?.open && (
-              <ul className="feed" style={{ background: "#fafafa", borderRadius: 8, marginTop: 8 }}>
+              <ul className="feed comments">
                 {comments[p.id]?.items?.map((cm) => (
-                  <li key={cm.id} className="post" style={{ border: 0, padding: "8px 12px" }}>
+                  <li key={cm.id} className="post">
                     <div className="post-head">
                       <button className="link author" onClick={() => onOpenProfile(cm.author_id)}>{cm.author_name || "Railfan"}</button>
                       {cm.handle ? <span className="handle">@{cm.handle}</span> : null}
@@ -104,7 +104,7 @@ export default function Explore({ onOpenProfile }: { onOpenProfile: (id: number)
                   </li>
                 ))}
                 {comments[p.id]?.items?.length === 0 && !comments[p.id]?.loading && (
-                  <li className="post" style={{ border: 0, padding: "8px 12px", color: "var(--muted)" }}>No comments yet</li>
+                  <li className="post" style={{ color: "var(--muted)" }}>No comments yet</li>
                 )}
               </ul>
             )}

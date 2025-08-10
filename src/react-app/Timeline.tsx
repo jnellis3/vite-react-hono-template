@@ -107,25 +107,10 @@ export default function Timeline({ onOpenProfile }: { onOpenProfile: (id: number
 
   return (
     <div>
-      <header style={{ padding: 12, background: "#0a2540", color: "#fff" }}>
-        <h2 style={{ margin: 0 }}>RailTalk 🚂</h2>
-        <small>A social line for train enthusiasts</small>
-      </header>
       {me ? (
-        <div style={{ padding: 12, borderBottom: "1px solid #ddd", background: "#f7fafc" }}>
-          <textarea
-            placeholder="Share your latest rail sighting..."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={3}
-            style={{ width: "100%" }}
-          />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-            <span style={{ fontSize: 12, color: "var(--muted)" }}>{content.length}/500</span>
-            <button disabled={posting || content.trim().length === 0 || content.length > 500} onClick={submitPost}>
-              {posting ? "Departing..." : "Post"}
-            </button>
-          </div>
+        <div className="composer">
+          <textarea placeholder="Share your latest rail sighting..." value={content} onChange={(e) => setContent(e.target.value)} />
+          <div className="row"><span className="muted">{content.length}/500</span><button disabled={posting || content.trim().length === 0 || content.length > 500} onClick={submitPost}>{posting ? "Departing..." : "Post"}</button></div>
         </div>
       ) : (
         <div style={{ padding: 12, background: "#fff3cd", borderBottom: "1px solid #ddd" }}>
@@ -133,19 +118,19 @@ export default function Timeline({ onOpenProfile }: { onOpenProfile: (id: number
         </div>
       )}
 
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+      <ul className="feed">
         {items.map((p) => (
-          <li key={p.id} style={{ padding: 12, borderBottom: "1px solid #eee" }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <li key={p.id} className="post">
+            <div className="post-head">
               <button className="link author" onClick={() => onOpenProfile(p.author_id)}>{p.author_name || "Railfan"}</button>
-              {p.handle ? <span style={{ color: "#555" }}>@{p.handle}</span> : null}
-              <span style={{ color: "#999", marginLeft: "auto" }}>{new Date(p.created_at).toLocaleString()}</span>
+              {p.handle ? <span className="handle">@{p.handle}</span> : null}
+              <span className="date">{new Date(p.created_at).toLocaleString()}</span>
             </div>
-            <div style={{ whiteSpace: "pre-wrap", margin: "8px 0" }}>{p.content}</div>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div className="post-body">{p.content}</div>
+            <div className="post-actions">
               <button onClick={() => toggleLike(p)}>{p.liked ? "❤️" : "🤍"} {p.like_count}</button>
               <button onClick={() => { setCommentFor(p.id); setCommentText(""); toggleCommentsOpen(p.id); }}>💬 {p.comment_count}</button>
-              <span>🚆</span>
+              <span aria-hidden>🚆</span>
             </div>
             {commentFor === p.id && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -155,14 +140,14 @@ export default function Timeline({ onOpenProfile }: { onOpenProfile: (id: number
                   placeholder="Add a comment"
                   style={{ flex: 1 }}
                 />
-                <span style={{ alignSelf: "center", fontSize: 12, color: "var(--muted)" }}>{commentText.length}/400</span>
+                <span className="muted" style={{ alignSelf: "center", fontSize: 12 }}>{commentText.length}/400</span>
                 <button disabled={commentText.trim().length === 0 || commentText.length > 400} onClick={() => submitComment(p.id)}>Reply</button>
               </div>
             )}
             {comments[p.id]?.open && (
-              <ul className="feed" style={{ background: "#fafafa", borderRadius: 8, marginTop: 8 }}>
+              <ul className="feed comments">
                 {comments[p.id]?.items?.map((cm) => (
-                  <li key={cm.id} className="post" style={{ border: 0, padding: "8px 12px" }}>
+                  <li key={cm.id} className="post">
                     <div className="post-head">
                       <button className="link author" onClick={() => onOpenProfile(cm.author_id)}>{cm.author_name || "Railfan"}</button>
                       {cm.handle ? <span className="handle">@{cm.handle}</span> : null}
@@ -172,7 +157,7 @@ export default function Timeline({ onOpenProfile }: { onOpenProfile: (id: number
                   </li>
                 ))}
                 {comments[p.id]?.items?.length === 0 && !comments[p.id]?.loading && (
-                  <li className="post" style={{ border: 0, padding: "8px 12px", color: "var(--muted)" }}>No comments yet</li>
+                  <li className="post" style={{ color: "var(--muted)" }}>No comments yet</li>
                 )}
               </ul>
             )}

@@ -32,16 +32,20 @@ function App() {
           <button className={active === "profile" ? "active" : ""} onClick={() => { setProfileId(me?.id ?? null); setActive("profile"); }}>Profile</button>
         </nav>
       </aside>
-      <main className="main">
-        <div className="topbar">
-          <Auth />
+      <main className="center">
+        <div className="topbar"><Auth /></div>
+        <div className="content">
+          {active === "home" && <Timeline onOpenProfile={(id) => { setProfileId(id); setActive("profile"); }} />}
+          {active === "explore" && <Explore onOpenProfile={(id) => { setProfileId(id); setActive("profile"); }} />}
+          {active === "profile" && <Profile userId={profileId ?? me?.id} />}
         </div>
-        {active === "home" && <Timeline onOpenProfile={(id) => { setProfileId(id); setActive("profile"); }} />}
-        {active === "explore" && (
-          <Explore onOpenProfile={(id) => { setProfileId(id); setActive("profile"); }} />
-        )}
-        {active === "profile" && <Profile userId={profileId ?? me?.id} />}
       </main>
+      <aside className="rightbar">
+        <div className="card" style={{ position: "sticky", top: 16 }}>
+          <h3 style={{ marginTop: 0 }}>Rail lines</h3>
+          <p className="muted">Follow your favorite locomotives and lines. Coming soon!</p>
+        </div>
+      </aside>
     </div>
   );
 }
