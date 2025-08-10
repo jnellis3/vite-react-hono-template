@@ -101,12 +101,13 @@ export default function Auth() {
         </form>
       )}
       <p>{msg}</p>
-      <p>
-        <button onClick={() => setMode(mode === "login" ? "register" : "login")}>
-          Switch to {mode === "login" ? "Create Account" : "Login"}
-        </button>
-      </p>
+      {!me && (
+        <p>
+          <button onClick={() => setMode(mode === "login" ? "register" : "login")}>
+            Switch to {mode === "login" ? "Create Account" : "Login"}
+          </button>
+        </p>
+      )}
     </div>
   );
 }
-

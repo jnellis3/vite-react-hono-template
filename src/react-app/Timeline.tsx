@@ -19,6 +19,8 @@ export default function Timeline() {
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [posting, setPosting] = useState(false);
   const [content, setContent] = useState("");
+  const [commentFor, setCommentFor] = useState<number | null>(null);
+  const [commentText, setCommentText] = useState("");
 
   const refreshMe = async () => {
     const r = await fetch("/api/auth/me");
@@ -65,6 +67,20 @@ export default function Timeline() {
     await loadTimeline();
   };
 
+  const submitComment = async (postId: number) => {
+    if (!commentText.trim()) return;
+    const r = await fetch(`/api/posts/${postId}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: commentText }),
+    });
+    if (r.ok) {
+      setCommentText("");
+      setCommentFor(null);
+      await loadTimeline();
+    }
+  };
+
   return (
     <div>
       <header style={{ padding: 12, background: "#0a2540", color: "#fff" }}>
@@ -101,9 +117,20 @@ export default function Timeline() {
             <div style={{ whiteSpace: "pre-wrap", margin: "8px 0" }}>{p.content}</div>
             <div style={{ display: "flex", gap: 12 }}>
               <button onClick={() => toggleLike(p)}>{p.liked ? "❤️" : "🤍"} {p.like_count}</button>
-              <span>💬 {p.comment_count}</span>
+              <button onClick={() => { setCommentFor(p.id); setCommentText(""); }}>💬 {p.comment_count}</button>
               <span>🚆</span>
             </div>
+            {commentFor === p.id && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <input
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Add a comment"
+                  style={{ flex: 1 }}
+                />
+                <button onClick={() => submitComment(p.id)}>Reply</button>
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -116,4 +143,3 @@ export default function Timeline() {
     </div>
   );
 }
-

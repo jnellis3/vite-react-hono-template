@@ -10,6 +10,7 @@ import Profile from "./Profile";
 function App() {
   const [active, setActive] = useState<"home" | "explore" | "profile">("home");
   const [me, setMe] = useState<{ id: number } | null>(null);
+  const [profileId, setProfileId] = useState<number | null>(null);
 
   const refreshMe = async () => {
     const r = await fetch("/api/auth/me");
@@ -28,7 +29,7 @@ function App() {
         <nav className="nav">
           <button className={active === "home" ? "active" : ""} onClick={() => setActive("home")}>Home</button>
           <button className={active === "explore" ? "active" : ""} onClick={() => setActive("explore")}>Explore</button>
-          <button className={active === "profile" ? "active" : ""} onClick={() => setActive("profile")}>Profile</button>
+          <button className={active === "profile" ? "active" : ""} onClick={() => { setProfileId(me?.id ?? null); setActive("profile"); }}>Profile</button>
         </nav>
       </aside>
       <main className="main">
@@ -36,8 +37,10 @@ function App() {
           <Auth />
         </div>
         {active === "home" && <Timeline />}
-        {active === "explore" && <Explore />}
-        {active === "profile" && <Profile userId={me?.id} />}
+        {active === "explore" && (
+          <Explore onOpenProfile={(id) => { setProfileId(id); setActive("profile"); }} />
+        )}
+        {active === "profile" && <Profile userId={profileId ?? me?.id} />}
       </main>
     </div>
   );
