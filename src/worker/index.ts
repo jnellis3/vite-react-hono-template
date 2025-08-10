@@ -96,7 +96,11 @@ app.post("/api/posts", requireAuth, async (c) => {
   try {
     const post = await c.env.DB.prepare(
       "insert into posts (author_id, content) values (?, ?) returning id, author_id, content, created_at"
-    ).bind(userId, content.trim()).first();
+    ).bind(userId, content.trim()).first<{ id: number; author_id: number; content: string; created_at: string }>();
+    // Background AI reply if mentioned
+    if (post && /(^|\s)@ai(\b|[^\w])/i.test(content)) {
+      c.executionCtx.waitUntil(handleAiReply(c.env, post.id, content));
+    }
     return c.json({ post });
   } catch (e) {
     return c.json({ error: String(e) }, 500);
@@ -339,6 +343,78 @@ app.get("/api/trending", async (c) => {
   }
 });
 
+// Utilities: AI reply handler
+async function handleAiReply(env: Env, postId: number, raw: string) {
+  try {
+    if (!env.OPENAI_API_KEY) return; // no-op if unset
+    const content = raw.replace(/(^|\s)@ai(\b|[^\w])/gi, " ").trim().slice(0, 1000);
+    const aiUserId = await ensureAiUser(env);
+    const reply = await generateAiReply(env, content);
+    if (!reply) return;
+    await env.DB.prepare(
+      "insert into comments (post_id, author_id, content) values (?, ?, ?)"
+    ).bind(postId, aiUserId, reply.slice(0, 800)).run();
+  } catch (e) {
+    // Best-effort; swallow errors
+    console.error("AI reply failed", e);
+  }
+}
+
+async function ensureAiUser(env: Env): Promise<number> {
+  const existing = await env.DB.prepare(
+    "select id from users where handle = 'ai' or email = 'ai@railtalk.system'"
+  ).first<{ id: number }>();
+  if (existing?.id) return existing.id;
+  const pw = await hashPassword(crypto.randomUUID() + Date.now());
+  const row = await env.DB.prepare(
+    "insert into users (email, password_hash, name, handle, display_name, bio) values (?, ?, ?, ?, ?, ?) returning id"
+  )
+    .bind(
+      "ai@railtalk.system",
+      pw,
+      "Rail AI",
+      "ai",
+      "Rail AI",
+      "Automated assistant conductor that replies to @ai."
+    )
+    .first<{ id: number }>();
+  return row!.id;
+}
+
+async function generateAiReply(env: Env, userContent: string): Promise<string | null> {
+  try {
+    const sys =
+      "You are Rail AI, a friendly, concise assistant with a railfan vibe. " +
+      "Reply helpfully to the user's post. Be safe, avoid private data, and keep it under 120 words.";
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.6,
+        max_tokens: 220,
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: userContent || "Say hello to the railfans!" },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      console.error("OpenAI error", await res.text());
+      return null;
+    }
+    const data = (await res.json()) as any;
+    const out: string | undefined = data.choices?.[0]?.message?.content;
+    return out?.trim() || null;
+  } catch (e) {
+    console.error("OpenAI fetch failed", e);
+    return null;
+  }
+}
+
 // Who to follow suggestions
 app.get("/api/who-to-follow", async (c) => {
   // Optional viewer to filter out self and already-followed
@@ -356,6 +432,7 @@ app.get("/api/who-to-follow", async (c) => {
          from users u
          where u.id != ?
            and u.id not in (select followee_id from follows where follower_id = ?)
+           and (u.handle is null or u.handle != 'ai')
          order by followers desc, u.id desc
          limit 5`
       ).bind(viewerId, viewerId);
@@ -366,6 +443,7 @@ app.get("/api/who-to-follow", async (c) => {
         `select u.id, coalesce(u.display_name, u.name, u.email) as name, u.handle,
                 coalesce((select count(*) from follows f2 where f2.followee_id = u.id), 0) as followers
          from users u
+         where (u.handle is null or u.handle != 'ai')
          order by followers desc, u.id desc
          limit 5`
       );

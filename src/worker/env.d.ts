@@ -3,4 +3,6 @@
 interface Env {
   DB: D1Database;
   JWT_SECRET: string;
+  // Set via Wrangler secret or Cloudflare UI
+  OPENAI_API_KEY?: string;
 }
