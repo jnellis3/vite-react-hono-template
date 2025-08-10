@@ -308,3 +308,71 @@ app.get("/api/users/:id/posts", async (c) => {
     return c.json({ error: String(e) }, 500);
   }
 });
+
+// Trending tags from recent posts (#tag)
+app.get("/api/trending", async (c) => {
+  const limit = Math.min(10, parseInt(new URL(c.req.url).searchParams.get("limit") || "5", 10) || 5);
+  try {
+    const { results } = await c.env.DB.prepare(
+      `select content from posts order by id desc limit 200`
+    ).all<{ content: string }>();
+    const counts = new Map<string, number>();
+    const re = /(^|\s)#([\p{L}\p{N}_]{2,30})/gu;
+    for (const row of results) {
+      if (!row.content) continue;
+      const seenInPost = new Set<string>();
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(row.content)) !== null) {
+        const tag = m[2].toLowerCase();
+        if (seenInPost.has(tag)) continue;
+        seenInPost.add(tag);
+        counts.set(tag, (counts.get(tag) || 0) + 1);
+      }
+    }
+    const items = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([tag, count]) => ({ tag, count }));
+    return c.json({ items });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// Who to follow suggestions
+app.get("/api/who-to-follow", async (c) => {
+  // Optional viewer to filter out self and already-followed
+  let viewerId: number | null = null;
+  const token = getCookie(c, "auth");
+  if (token) {
+    const payload = await verifyJwt<{ sub: number }>(token, c.env.JWT_SECRET);
+    if (payload) viewerId = payload.sub;
+  }
+  try {
+    if (viewerId) {
+      const stmt = c.env.DB.prepare(
+        `select u.id, coalesce(u.display_name, u.name, u.email) as name, u.handle,
+                coalesce((select count(*) from follows f2 where f2.followee_id = u.id), 0) as followers
+         from users u
+         where u.id != ?
+           and u.id not in (select followee_id from follows where follower_id = ?)
+         order by followers desc, u.id desc
+         limit 5`
+      ).bind(viewerId, viewerId);
+      const { results } = await stmt.all();
+      return c.json({ items: results });
+    } else {
+      const stmt = c.env.DB.prepare(
+        `select u.id, coalesce(u.display_name, u.name, u.email) as name, u.handle,
+                coalesce((select count(*) from follows f2 where f2.followee_id = u.id), 0) as followers
+         from users u
+         order by followers desc, u.id desc
+         limit 5`
+      );
+      const { results } = await stmt.all();
+      return c.json({ items: results });
+    }
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
