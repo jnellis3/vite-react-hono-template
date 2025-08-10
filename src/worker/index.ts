@@ -252,3 +252,59 @@ app.patch("/api/me/profile", requireAuth, async (c) => {
     return c.json({ error: msg }, 500);
   }
 });
+
+// Public Explore: latest posts across all users
+app.get("/api/posts/explore", async (c) => {
+  // Try to resolve optional userId from cookie for 'liked' flag
+  let viewerId: number | null = null;
+  const token = getCookie(c, "auth");
+  if (token) {
+    const payload = await verifyJwt<{ sub: number }>(token, c.env.JWT_SECRET);
+    if (payload) viewerId = payload.sub;
+  }
+  try {
+    const stmt = c.env.DB.prepare(
+      `select p.id, p.content, p.created_at,
+              u.id as author_id, coalesce(u.display_name, u.name) as author_name, u.handle,
+              (select count(*) from likes l where l.post_id = p.id) as like_count,
+              (select count(*) from comments cm where cm.post_id = p.id) as comment_count,
+              ${viewerId ? `exists(select 1 from likes l2 where l2.post_id = p.id and l2.user_id = ${viewerId})` : `0`} as liked
+       from posts p join users u on u.id = p.author_id
+       order by p.id desc
+       limit 50`
+    );
+    const { results } = await stmt.all();
+    return c.json({ items: results });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+// Public: posts by a specific user
+app.get("/api/users/:id/posts", async (c) => {
+  const authorId = Number(c.req.param("id"));
+  // Optional viewer to compute liked
+  let viewerId: number | null = null;
+  const token = getCookie(c, "auth");
+  if (token) {
+    const payload = await verifyJwt<{ sub: number }>(token, c.env.JWT_SECRET);
+    if (payload) viewerId = payload.sub;
+  }
+  try {
+    const stmt = c.env.DB.prepare(
+      `select p.id, p.content, p.created_at,
+              u.id as author_id, coalesce(u.display_name, u.name) as author_name, u.handle,
+              (select count(*) from likes l where l.post_id = p.id) as like_count,
+              (select count(*) from comments cm where cm.post_id = p.id) as comment_count,
+              ${viewerId ? `exists(select 1 from likes l2 where l2.post_id = p.id and l2.user_id = ${viewerId})` : `0`} as liked
+       from posts p join users u on u.id = p.author_id
+       where p.author_id = ?
+       order by p.id desc
+       limit 50`
+    ).bind(authorId);
+    const { results } = await stmt.all();
+    return c.json({ items: results });
+  } catch (e) {
+    return c.json({ error: String(e) }, 500);
+  }
+});
