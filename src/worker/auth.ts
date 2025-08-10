@@ -1,7 +1,6 @@
 import { Jwt } from "hono/utils/jwt";
 
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
 
 const PBKDF2_ITERATIONS = 100_000;
 const PBKDF2_SALT_BYTES = 16;
@@ -63,15 +62,14 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 
 export async function signJwt(payload: Record<string, unknown>, secret: string): Promise<string> {
-  return await Jwt.sign(payload, { secret, algorithm: "HS256" });
+  return await Jwt.sign(payload, secret, "HS256");
 }
 
 export async function verifyJwt<T>(token: string, secret: string): Promise<T | null> {
   try {
-    const data = await Jwt.verify(token, { secret, algorithm: "HS256" });
+    const data = await Jwt.verify(token, secret, "HS256");
     return data as T;
   } catch {
     return null;
   }
 }
-

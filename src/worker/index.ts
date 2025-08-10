@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { setCookie, deleteCookie, getCookie } from "hono/helper/cookie";
+import { setCookie, deleteCookie, getCookie } from "hono/cookie";
 import { hashPassword, signJwt, verifyJwt, verifyPassword } from "./auth";
 
 type Variables = { userId?: number };
