@@ -12,10 +12,13 @@ type Post = {
   liked: number | boolean;
 };
 
+type Comment = { id: number; content: string; created_at: string; author_id: number; author_name?: string | null; handle?: string | null };
+
 export default function Explore({ onOpenProfile }: { onOpenProfile: (id: number) => void }) {
   const [items, setItems] = useState<Post[]>([]);
   const [commentFor, setCommentFor] = useState<number | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState<Record<number, { open: boolean; loading: boolean; items: Comment[] }>>({});
 
   const load = async () => {
     const r = await fetch("/api/posts/explore");
@@ -46,6 +49,18 @@ export default function Explore({ onOpenProfile }: { onOpenProfile: (id: number)
       setCommentText("");
       setCommentFor(null);
       await load();
+      if (comments[postId]?.open) await loadComments(postId);
+    }
+  };
+
+  const loadComments = async (postId: number) => {
+    setComments((m) => ({ ...m, [postId]: { ...(m[postId] || { open: true, loading: true, items: [] }), loading: true } }));
+    const r = await fetch(`/api/posts/${postId}/comments`);
+    if (r.ok) {
+      const data = (await r.json()) as { items: Comment[] };
+      setComments((m) => ({ ...m, [postId]: { open: true, loading: false, items: data.items } }));
+    } else {
+      setComments((m) => ({ ...m, [postId]: { ...(m[postId] || { open: false, loading: false, items: [] }), loading: false } }));
     }
   };
 
@@ -62,7 +77,7 @@ export default function Explore({ onOpenProfile }: { onOpenProfile: (id: number)
             <div className="post-body">{p.content}</div>
             <div className="post-actions">
               <button onClick={() => toggleLike(p)}>{p.liked ? "❤️" : "🤍"} {p.like_count}</button>
-              <button onClick={() => { setCommentFor(p.id); setCommentText(""); }}>💬 {p.comment_count}</button>
+              <button onClick={() => { setCommentFor(p.id); setCommentText(""); loadComments(p.id); }}>💬 {p.comment_count}</button>
             </div>
             {commentFor === p.id && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -72,8 +87,26 @@ export default function Explore({ onOpenProfile }: { onOpenProfile: (id: number)
                   placeholder="Add a comment"
                   style={{ flex: 1 }}
                 />
-                <button onClick={() => submitComment(p.id)}>Reply</button>
+                <span style={{ alignSelf: "center", fontSize: 12, color: "var(--muted)" }}>{commentText.length}/400</span>
+                <button disabled={commentText.trim().length === 0 || commentText.length > 400} onClick={() => submitComment(p.id)}>Reply</button>
               </div>
+            )}
+            {comments[p.id]?.open && (
+              <ul className="feed" style={{ background: "#fafafa", borderRadius: 8, marginTop: 8 }}>
+                {comments[p.id]?.items?.map((cm) => (
+                  <li key={cm.id} className="post" style={{ border: 0, padding: "8px 12px" }}>
+                    <div className="post-head">
+                      <button className="link author" onClick={() => onOpenProfile(cm.author_id)}>{cm.author_name || "Railfan"}</button>
+                      {cm.handle ? <span className="handle">@{cm.handle}</span> : null}
+                      <span className="date">{new Date(cm.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="post-body">{cm.content}</div>
+                  </li>
+                ))}
+                {comments[p.id]?.items?.length === 0 && !comments[p.id]?.loading && (
+                  <li className="post" style={{ border: 0, padding: "8px 12px", color: "var(--muted)" }}>No comments yet</li>
+                )}
+              </ul>
             )}
           </li>
         ))}

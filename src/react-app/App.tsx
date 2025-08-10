@@ -36,7 +36,7 @@ function App() {
         <div className="topbar">
           <Auth />
         </div>
-        {active === "home" && <Timeline />}
+        {active === "home" && <Timeline onOpenProfile={(id) => { setProfileId(id); setActive("profile"); }} />}
         {active === "explore" && (
           <Explore onOpenProfile={(id) => { setProfileId(id); setActive("profile"); }} />
         )}
