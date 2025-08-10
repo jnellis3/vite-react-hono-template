@@ -1,11 +1,13 @@
 -- Core social tables: posts, likes, follows, comments
 
 -- Extend users with profile fields
-ALTER TABLE users ADD COLUMN handle TEXT UNIQUE;
+ALTER TABLE users ADD COLUMN handle TEXT;
 ALTER TABLE users ADD COLUMN display_name TEXT;
 ALTER TABLE users ADD COLUMN bio TEXT;
 ALTER TABLE users ADD COLUMN avatar_url TEXT;
 ALTER TABLE users ADD COLUMN banner_url TEXT;
+-- Enforce unique handle via index (NULLs allowed)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_unique ON users(handle) WHERE handle IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,4 +41,3 @@ CREATE TABLE IF NOT EXISTS comments (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_comments_post_created ON comments(post_id, created_at DESC);
-
